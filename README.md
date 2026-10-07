@@ -1,6 +1,6 @@
-# Clinic export demo backend
+# Clinic export demo
 
-This is the local backend for the Week 7 proof of concept. It uses only synthetic data. The React frontend has not been built yet.
+This is the local Week 7 proof of concept. It uses only synthetic data. The React frontend lets staff inspect permitted records and demonstrates the manager-only JSON export control.
 
 ## Data
 
@@ -12,7 +12,7 @@ Demo logins are `royce`, `alvin`, `alexa`, and `andy`; all use the password `pas
 
 ## Setup and run
 
-From this repository directory:
+Start the backend from the repository directory:
 
 ```powershell
 uv sync --dev
@@ -30,6 +30,16 @@ The loader refuses to overwrite an existing database. The fixture generator also
 ```powershell
 uv run python -m backend.seed generate
 ```
+
+In a second terminal, start the frontend:
+
+```powershell
+cd frontend
+npm install
+npm run dev
+```
+
+Open `http://127.0.0.1:5173/`. Vite forwards `/api` requests to the backend on port 8000. Sign in as `royce` to create and view a JSON export, or as `alvin`, `alexa`, or `andy` to see the volunteer view and its denied export attempt. The export URL is temporary: logging out makes it unavailable.
 
 ## API
 
