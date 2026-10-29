@@ -20,10 +20,10 @@ LAST_NAMES = (
     "Torres", "Vega",
 )
 DEMO_USERS = (
-    (1, "royce", "Royce", "Barrera", "manager"),
-    (2, "alvin", "Alvin", "Janton", "volunteer"),
-    (3, "alexa", "Alexa", "Llaneras", "volunteer"),
-    (4, "andy", "Andy", "Ocampo", "volunteer"),
+    (1, "andy", "Andy", "Sotomayor", "manager"),
+    (2, "elodie", "Elodie", "Coleman", "volunteer"),
+    (3, "jacob", "Jacob", "Schnellinger", "volunteer"),
+    (4, "kwesi", "Kwesi", "Mcneishie", "volunteer"),
 )
 STATUSES = ("scheduled", "arrived", "missed", "cancelled")
 REASONS = ("vaccine", "bloodwork", "routine checkup")

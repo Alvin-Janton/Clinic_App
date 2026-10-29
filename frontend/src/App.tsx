@@ -31,16 +31,16 @@ import {
 const PAGE_SIZE = 20
 const SESSION_CHANNEL = 'clinic-session'
 const ACCOUNT_NAMES: Record<number, string> = {
-  1: 'Royce Barrera',
-  2: 'Alvin Janton',
-  3: 'Alexa Llaneras',
-  4: 'Andy Ocampo',
+  1: 'Andy Sotomayor',
+  2: 'Elodie Coleman',
+  3: 'Jacob Schnellinger',
+  4: 'Kwesi Mcneishie',
 }
 const DEMO_ACCOUNTS = [
-  { username: 'royce', name: 'Royce Barrera', role: 'Manager' },
-  { username: 'alvin', name: 'Alvin Janton', role: 'Volunteer' },
-  { username: 'alexa', name: 'Alexa Llaneras', role: 'Volunteer' },
-  { username: 'andy', name: 'Andy Ocampo', role: 'Volunteer' },
+  { username: 'andy', name: 'Andy Sotomayor', role: 'Manager' },
+  { username: 'elodie', name: 'Elodie Coleman', role: 'Volunteer' },
+  { username: 'jacob', name: 'Jacob Schnellinger', role: 'Volunteer' },
+  { username: 'kwesi', name: 'Kwesi Mcneishie', role: 'Volunteer' },
 ] as const
 
 type ExportState =

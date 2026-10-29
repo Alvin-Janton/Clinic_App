@@ -3,30 +3,30 @@
   "users": [
     {
       "id": 1,
-      "username": "royce",
-      "first_name": "Royce",
-      "last_name": "Barrera",
+      "username": "andy",
+      "first_name": "Andy",
+      "last_name": "Sotomayor",
       "role": "manager"
     },
     {
       "id": 2,
-      "username": "alvin",
-      "first_name": "Alvin",
-      "last_name": "Janton",
+      "username": "elodie",
+      "first_name": "Elodie",
+      "last_name": "Coleman",
       "role": "volunteer"
     },
     {
       "id": 3,
-      "username": "alexa",
-      "first_name": "Alexa",
-      "last_name": "Llaneras",
+      "username": "jacob",
+      "first_name": "Jacob",
+      "last_name": "Schnellinger",
       "role": "volunteer"
     },
     {
       "id": 4,
-      "username": "andy",
-      "first_name": "Andy",
-      "last_name": "Ocampo",
+      "username": "kwesi",
+      "first_name": "Kwesi",
+      "last_name": "Mcneishie",
       "role": "volunteer"
     }
   ],

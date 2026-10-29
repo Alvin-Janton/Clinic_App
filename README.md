@@ -8,7 +8,7 @@ This is the local Week 7 proof of concept. It uses only synthetic data. The Reac
 
 The three SQLite tables are `users`, `patients`, and `visits`. Sessions and generated JSON exports exist only in backend memory. Restarting the server clears both. Logging out removes the current session and its exports, so an old export URL no longer returns data.
 
-Demo logins are `royce`, `alvin`, `alexa`, and `andy`; all use the password `password`. This shared password is intentionally weak and is suitable only for the local synthetic-data demonstration. Passwords are stored as salted hashes, not plaintext, in SQLite.
+Demo logins are `andy`, `elodie`, `jacob`, and `kwesi`; all use the password `password`. This shared password is intentionally weak and is suitable only for the local synthetic-data demonstration. Passwords are stored as salted hashes, not plaintext, in SQLite.
 
 ## Setup and run
 
@@ -39,7 +39,7 @@ npm install
 npm run dev
 ```
 
-Open `http://127.0.0.1:5173/`. Vite forwards `/api` requests to the backend on port 8000. Sign in as `royce` to create and view a JSON export, or as `alvin`, `alexa`, or `andy` to see the volunteer view and its denied export attempt. The export URL is temporary: logging out makes it unavailable.
+Open `http://127.0.0.1:5173/`. Vite forwards `/api` requests to the backend on port 8000. Sign in as `andy` to create and view a JSON export, or as `elodie`, `jacob`, or `kwesi` to see the volunteer view and its denied export attempt. The export URL is temporary: logging out makes it unavailable.
 
 ## API
 

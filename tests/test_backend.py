@@ -24,7 +24,7 @@ def login(client, username):
 
 def test_fixture_ranges_and_count(clients):
     manager, _ = clients
-    login(manager, "royce")
+    login(manager, "andy")
     response = manager.post("/api/exports")
     assert response.status_code == 201
     assert response.json()["patient_count"] == 200
@@ -40,8 +40,8 @@ def test_fixture_ranges_and_count(clients):
 
 def test_volunteer_cannot_create_or_view_export(clients):
     manager, volunteer = clients
-    login(manager, "royce")
-    login(volunteer, "alvin")
+    login(manager, "andy")
+    login(volunteer, "elodie")
     view_url = manager.post("/api/exports").json()["view_url"]
 
     denied = volunteer.post("/api/exports")
@@ -52,19 +52,19 @@ def test_volunteer_cannot_create_or_view_export(clients):
 
 def test_exports_disappear_on_logout_and_new_login(clients):
     manager, _ = clients
-    login(manager, "royce")
+    login(manager, "andy")
     view_url = manager.post("/api/exports").json()["view_url"]
     assert manager.get(view_url).status_code == 200
     assert manager.post("/api/logout").status_code == 200
     assert manager.get(view_url).status_code == 401
-    login(manager, "royce")
+    login(manager, "andy")
     assert manager.get(view_url).status_code == 404
 
 
 def test_volunteer_records_are_scoped(clients):
     manager, volunteer = clients
-    login(manager, "royce")
-    login(volunteer, "alvin")
+    login(manager, "andy")
+    login(volunteer, "elodie")
     all_count = manager.get("/api/records").json()["total"]
     assigned = volunteer.get("/api/records?page_size=100").json()
     assert all_count == 200
