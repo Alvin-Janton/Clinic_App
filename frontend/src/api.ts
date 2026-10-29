@@ -86,4 +86,5 @@ export const api = {
     request<RecordPage>(`/api/records?page=${page}&page_size=${pageSize}`, { signal }),
   record: (id: number) => request<PatientDetail>(`/api/records/${id}`),
   createExport: () => request<ExportResult>('/api/exports', { method: 'POST' }),
+  export: (id: string) => request<unknown>(`/api/exports/${encodeURIComponent(id)}`),
 }

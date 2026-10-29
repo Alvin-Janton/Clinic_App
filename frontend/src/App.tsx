@@ -29,6 +29,7 @@ import {
 } from './api'
 
 const PAGE_SIZE = 20
+const SESSION_CHANNEL = 'clinic-session'
 const ACCOUNT_NAMES: Record<number, string> = {
   1: 'Royce Barrera',
   2: 'Alvin Janton',
@@ -194,7 +195,7 @@ function VisitRow({ visit }: { visit: Visit }) {
     <li className="border-b border-slate-100 py-4 last:border-b-0">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-sm font-semibold text-[#18302e]">{titleCase(visit.reason)}</p>
+          <p className="text-sm font-semibold text-[#18302e]"><span className="font-medium text-slate-500">Reason for visit: </span>{titleCase(visit.reason)}</p>
           <p className="mt-1 flex items-center gap-1.5 text-xs text-slate-500">
             <CalendarDays aria-hidden="true" size={13} /> {visitDate(visit.scheduled_at)}
           </p>
@@ -339,6 +340,11 @@ function RecordsWorkspace({ user, onSignOut, onExpired }: {
     setSignOutBusy(true)
     try {
       await api.logout()
+      if ('BroadcastChannel' in window) {
+        const channel = new BroadcastChannel(SESSION_CHANNEL)
+        channel.postMessage('signed-out')
+        channel.close()
+      }
       onSignOut()
     } catch (cause) {
       setRecordsError(messageFrom(cause))
@@ -389,10 +395,10 @@ function RecordsWorkspace({ user, onSignOut, onExpired }: {
             {exportState.kind === 'success' ? (
               <>
                 <div className="flex min-w-0 items-center gap-3"><Check aria-hidden="true" size={18} className="shrink-0" /><span><strong>Export ready.</strong> {exportState.result.patient_count} patients and {exportState.result.visit_count} visits.</span></div>
-                <a className="inline-flex items-center gap-1.5 font-semibold underline underline-offset-2" href={exportState.result.view_url} target="_blank" rel="noopener noreferrer">Open JSON <ExternalLink aria-hidden="true" size={15} /></a>
+                <a className="inline-flex items-center gap-1.5 font-semibold underline underline-offset-2" href={`/exports/${encodeURIComponent(exportState.result.id)}`} target="_blank" rel="noopener noreferrer">Open JSON <ExternalLink aria-hidden="true" size={15} /></a>
               </>
             ) : exportState.kind === 'denied' ? (
-              <div className="flex items-center gap-3"><LockKeyhole aria-hidden="true" size={18} className="shrink-0" /><span><strong>Export denied.</strong> HTTP 403 | 0 records returned. Manager access required.</span></div>
+              <div className="flex items-center gap-3"><LockKeyhole aria-hidden="true" size={18} className="shrink-0" /><span><strong>Export denied.</strong> Manager access required.</span></div>
             ) : (
               <div className="flex items-center gap-3"><CircleAlert aria-hidden="true" size={18} className="shrink-0" /><span>{exportState.message}</span></div>
             )}
@@ -436,7 +442,26 @@ function RecordsWorkspace({ user, onSignOut, onExpired }: {
   )
 }
 
-function App() {
+function ExportViewer({ exportId }: { exportId: string }) {
+  const [content, setContent] = useState('Loading export...')
+
+  useEffect(() => {
+    api.export(exportId)
+      .then((payload) => setContent(JSON.stringify(payload, null, 2)))
+      .catch((cause: unknown) => setContent(JSON.stringify({ detail: messageFrom(cause) })))
+
+    if (!('BroadcastChannel' in window)) return
+    const channel = new BroadcastChannel(SESSION_CHANNEL)
+    channel.onmessage = (event: MessageEvent) => {
+      if (event.data === 'signed-out') window.location.reload()
+    }
+    return () => channel.close()
+  }, [exportId])
+
+  return <main className="min-h-screen bg-white p-4 text-[#18302e]"><pre className="overflow-x-auto whitespace-pre-wrap break-words font-mono text-sm">{content}</pre></main>
+}
+
+function ClinicApp() {
   const [user, setUser] = useState<User | null>(null)
   const [checking, setChecking] = useState(true)
   const [serviceError, setServiceError] = useState('')
@@ -459,6 +484,11 @@ function App() {
   }
 
   return <RecordsWorkspace user={user} onSignOut={() => setUser(null)} onExpired={() => setUser(null)} />
+}
+
+function App() {
+  const exportMatch = window.location.pathname.match(/^\/exports\/([^/]+)$/)
+  return exportMatch ? <ExportViewer exportId={decodeURIComponent(exportMatch[1])} /> : <ClinicApp />
 }
 
 export default App
