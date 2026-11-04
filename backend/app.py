@@ -2,10 +2,13 @@ import secrets
 import time
 from contextlib import closing
 from pathlib import Path
+from datetime import datetime, timezone
+from typing import Literal
 
 from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
+from starlette.concurrency import run_in_threadpool
 
 from backend.db import DEFAULT_DB_PATH, connect, verify_password
 
@@ -24,6 +27,31 @@ def create_app(database_path: Path = DEFAULT_DB_PATH) -> FastAPI:
     app.state.database_path = database_path
     app.state.sessions = {}
     app.state.exports = {}
+
+    @app.middleware("http")
+    async def log_export_access(request: Request, call_next):
+        path = request.url.path.rstrip("/")
+        if path != "/api/exports" and not path.startswith("/api/exports/"):
+            return await call_next(request)
+        occurred_at = datetime.now(timezone.utc).isoformat(timespec="microseconds")
+        status_code = 500
+        try:
+            response = await call_next(request)
+            status_code = response.status_code
+            return response
+        finally:
+            # Capture denied requests too; authentication can fail before a route runs.
+            def persist():
+                with closing(connect(database_path)) as connection, connection:
+                    connection.execute(
+                        "INSERT INTO export_access_logs (occurred_at, user_id, action, status_code) "
+                        "VALUES (?, ?, ?, ?)",
+                        (occurred_at, getattr(request.state, "user_id", None),
+                         "create" if request.method == "POST" and path == "/api/exports"
+                         else "view" if request.method == "GET" and path.startswith("/api/exports/")
+                         else "other", status_code),
+                    )
+            await run_in_threadpool(persist)
 
     def current_session(request: Request) -> tuple[str, dict]:
         token = request.cookies.get(COOKIE_NAME)
@@ -50,7 +78,49 @@ def create_app(database_path: Path = DEFAULT_DB_PATH) -> FastAPI:
             ).fetchone()
         if row is None:
             raise HTTPException(status_code=401, detail="Account unavailable")
+        request.state.user_id = row["id"]
         return token, dict(row)
+
+    @app.get("/api/export-access-logs")
+    def export_access_logs(
+        identity: tuple[str, dict] = Depends(current_user),
+        user_id: int | None = Query(None, ge=1),
+        anonymous: bool = False,
+        outcome: Literal["success", "failure"] | None = None,
+        action: Literal["create", "view", "other"] | None = None,
+        order: Literal["newest", "oldest"] = "newest",
+        page: int = Query(1, ge=1),
+        page_size: int = Query(20, ge=1, le=100),
+    ):
+        if identity[1]["role"] != "manager":
+            raise HTTPException(status_code=403, detail="Manager role required")
+        clauses, parameters = [], []
+        if user_id is not None:
+            clauses.append("l.user_id = ?")
+            parameters.append(user_id)
+        if anonymous:
+            clauses.append("l.user_id IS NULL")
+        if outcome:
+            clauses.append("l.status_code BETWEEN 200 AND 299" if outcome == "success"
+                           else "l.status_code NOT BETWEEN 200 AND 299")
+        if action:
+            clauses.append("l.action = ?")
+            parameters.append(action)
+        where = " WHERE " + " AND ".join(clauses) if clauses else ""
+        direction = "DESC" if order == "newest" else "ASC"
+        with closing(connect(database_path)) as connection:
+            total = connection.execute("SELECT COUNT(*) FROM export_access_logs l" + where,
+                                       parameters).fetchone()[0]
+            rows = connection.execute(
+                "SELECT l.*, u.first_name, u.last_name FROM export_access_logs l "
+                "LEFT JOIN users u ON u.id = l.user_id" + where +
+                f" ORDER BY l.occurred_at {direction}, l.id {direction} LIMIT ? OFFSET ?",
+                (*parameters, page_size, (page - 1) * page_size),
+            ).fetchall()
+            users = connection.execute("SELECT id, first_name, last_name FROM users ORDER BY first_name").fetchall()
+        return JSONResponse({"items": [dict(row) for row in rows], "total": total,
+                             "users": [dict(row) for row in users]},
+                            headers={"Cache-Control": "no-store"})
 
     @app.post("/api/login")
     def login(payload: LoginInput, request: Request, response: Response) -> dict:

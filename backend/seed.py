@@ -57,6 +57,15 @@ CREATE TABLE visits (
 
 CREATE INDEX idx_patients_assigned_volunteer ON patients(assigned_volunteer_id);
 CREATE INDEX idx_visits_patient ON visits(patient_id);
+
+CREATE TABLE export_access_logs (
+    id INTEGER PRIMARY KEY,
+    occurred_at TEXT NOT NULL,
+    user_id INTEGER REFERENCES users(id),
+    action TEXT NOT NULL,
+    status_code INTEGER NOT NULL
+);
+CREATE INDEX idx_export_logs_time ON export_access_logs(occurred_at, id);
 """
 
 
