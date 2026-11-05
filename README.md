@@ -6,9 +6,11 @@ This is the local Week 7 proof of concept. It uses only synthetic data. The Reac
 
 `data/seed.json` is the saved, reviewable fixture generated once by `backend.seed`. It contains four demo users, 200 patients, and 250 visits dated October 1-7, 2026. The SQLite database at `data/clinic.sqlite3` was loaded from that fixture and is ignored by Git because it can be recreated.
 
-The SQLite tables are `users`, `patients`, `visits`, and `export_access_logs`. Sessions and generated JSON exports exist only in backend memory. Restarting the server clears both. Logging out removes the current session and its exports, so an old export URL no longer returns data. Export access logs persist in SQLite across logouts and restarts.
+The SQLite tables are `users`, `patients`, `visits`, `export_access_logs`, and `activity_logs`. Sessions and generated JSON exports exist only in backend memory. Restarting the server clears both. Logging out removes the current session and its exports, so an old export URL no longer returns data. All access logs persist in SQLite across logouts and restarts.
 
-Managers can open **Export access logs** to filter attempts by user (including unauthenticated requests), action, and outcome, combine these filters, or change between newest and oldest first. Entries record the request time in UTC, authenticated user ID when available, action, and response status. The screen displays times in the browser's local timezone. Logs contain no export contents, passwords, session tokens, or export URLs. They share the database's backup and local-file-access limitations; they are not tamper-proof.
+Managers can open **Access logs** to filter attempts by type (export, authentication, or patient access), user, action, and outcome, combine these filters, or change between newest and oldest first. Entries record UTC time, authenticated user ID when available, action, and response status. The screen displays times in the browser's local timezone. Login attempts record a bounded, sanitized username; failed logins are labeled unverified and do not attribute the attempt to the account owner. Patient access logs record the requested patient ID and include successful, denied, missing-record, and unauthenticated requests to the individual-record endpoint. The patient list is excluded. Logs contain no medical details, passwords, session tokens, or export URLs. They share the database's backup and local-file-access limitations; they are not tamper-proof.
+
+The added `activity_logs` table requires rebuilding existing demo databases from the fixture, using the backup-and-load steps below. This clears live log history in the new database; retain the backup if you need that history.
 
 For an existing installation, stop the backend and move the current database to a unique backup filename (for example `clinic.sqlite3.bak.bak`), then run `uv run python -m backend.seed load` before restarting. This recreates the database from the saved fixture with an empty log table. Do not overwrite an existing backup. If the log table is missing or unwritable, export requests fail rather than silently proceeding without a log entry.
 
@@ -57,6 +59,7 @@ Open `http://127.0.0.1:5173/`. Vite forwards `/api` requests to the backend on p
 | `POST /api/exports` | Manager only; create an in-memory JSON export and return its count and view URL. |
 | `GET /api/exports/{id}` | Return the JSON only to the manager session that created it. |
 | `GET /api/export-access-logs` | Manager only; paginated export attempt history with user, anonymous, action, outcome, and order filters. |
+| `GET /api/access-logs` | Manager only; combined history with the same filters and an optional `event_type` of `export`, `authentication`, or `patient`. |
 
 The export creation response reports a patient count; the JSON view contains `patients` and `visits` arrays. A volunteer's export request returns `403` without a data payload. A new login does not recover exports from an old session.
 

@@ -66,6 +66,18 @@ CREATE TABLE export_access_logs (
     status_code INTEGER NOT NULL
 );
 CREATE INDEX idx_export_logs_time ON export_access_logs(occurred_at, id);
+
+CREATE TABLE activity_logs (
+    id INTEGER PRIMARY KEY,
+    occurred_at TEXT NOT NULL,
+    user_id INTEGER REFERENCES users(id),
+    event_type TEXT NOT NULL,
+    action TEXT NOT NULL,
+    status_code INTEGER NOT NULL,
+    attempted_username TEXT,
+    patient_id INTEGER
+);
+CREATE INDEX idx_activity_logs_time ON activity_logs(occurred_at, id);
 """
 
 

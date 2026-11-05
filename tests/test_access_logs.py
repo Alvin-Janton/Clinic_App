@@ -43,3 +43,39 @@ def test_export_logging_and_monitoring(tmp_path):
     with TestClient(create_app(path)) as restarted:
         restarted.post("/api/login", json={"username": "andy", "password": "password"})
         assert restarted.get("/api/export-access-logs").json()["total"] == 6
+
+
+def test_authentication_and_patient_logs(tmp_path):
+    path = tmp_path / "clinic.sqlite3"
+    load_database(db_path=path)
+    with TestClient(create_app(path)) as client:
+        assert client.post("/api/login", json={"username": "andy", "password": "WRONG_SECRET"}).status_code == 401
+        assert client.post("/api/login", json={"username": "unknown\nuser", "password": "SECRET"}).status_code == 401
+        assert client.post("/api/login", json={"username": "elodie", "password": "password"}).status_code == 200
+        assert client.get("/api/access-logs").status_code == 403
+        records = client.get("/api/records").json()["items"]
+        allowed = records[0]["id"]
+        assert client.get(f"/api/records/{allowed}").status_code == 200
+        with closing(connect(path)) as db:
+            denied = db.execute("SELECT id FROM patients WHERE assigned_volunteer_id IS NULL LIMIT 1").fetchone()[0]
+        assert client.get(f"/api/records/{denied}").status_code == 403
+        assert client.get("/api/records/9999").status_code == 404
+        client.post("/api/logout")
+        assert client.get(f"/api/records/{allowed}").status_code == 401
+        client.post("/api/login", json={"username": "andy", "password": "password"})
+        auth = client.get("/api/access-logs?event_type=authentication&order=oldest").json()
+        assert auth["total"] == 4
+        assert [r["status_code"] for r in auth["items"]] == [401, 401, 200, 200]
+        assert auth["items"][0]["user_id"] is None
+        assert auth["items"][0]["attempted_username"] == "andy"
+        assert auth["items"][1]["attempted_username"] == "unknownuser"
+        patients = client.get("/api/access-logs?event_type=patient&order=oldest").json()
+        assert [r["status_code"] for r in patients["items"]] == [200, 403, 404, 401]
+        assert patients["items"][1]["patient_id"] == denied
+        assert client.get("/api/access-logs?event_type=patient&user_id=2&outcome=failure").json()["total"] == 2
+        assert client.get("/api/access-logs?event_type=invalid").status_code == 422
+        assert client.get("/api/access-logs").json()["total"] == 8
+        assert "SECRET" not in client.get("/api/access-logs").text
+    with TestClient(create_app(path)) as client:
+        client.post("/api/login", json={"username": "andy", "password": "password"})
+        assert client.get("/api/access-logs?event_type=patient").json()["total"] == 4

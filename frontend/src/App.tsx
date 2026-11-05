@@ -379,7 +379,7 @@ function RecordsWorkspace({ user, onSignOut, onExpired }: {
         </div>
       </header>
 
-      {user.role === 'manager' && <nav aria-label="Workspace views" className="mx-auto flex max-w-7xl gap-6 border-b border-slate-200 px-4 sm:px-7">{[['records', 'Patient records'], ['logs', 'Export access logs']].map(([id, label]) => <button key={id} type="button" aria-current={view === id ? 'page' : undefined} onClick={() => setView(id)} className={`border-b-2 py-4 text-sm font-semibold ${view === id ? 'border-teal-700 text-teal-800' : 'border-transparent text-slate-500'}`}>{label}</button>)}</nav>}
+      {user.role === 'manager' && <nav aria-label="Workspace views" className="mx-auto flex max-w-7xl gap-6 border-b border-slate-200 px-4 sm:px-7">{[['records', 'Patient records'], ['logs', 'Access logs']].map(([id, label]) => <button key={id} type="button" aria-current={view === id ? 'page' : undefined} onClick={() => setView(id)} className={`border-b-2 py-4 text-sm font-semibold ${view === id ? 'border-teal-700 text-teal-800' : 'border-transparent text-slate-500'}`}>{label}</button>)}</nav>}
       {view === 'logs' && user.role === 'manager' ? <AccessLogs onExpired={onExpired} /> : <main className="mx-auto max-w-7xl px-4 pb-16 pt-8 sm:px-7 sm:pt-10">
         <div className="flex flex-wrap items-start justify-between gap-5">
           <div>

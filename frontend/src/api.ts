@@ -55,7 +55,7 @@ export class ApiError extends Error {
 export interface AccessLogPage {
   total: number
   users: Pick<User, 'id' | 'first_name' | 'last_name'>[]
-  items: { id: number; occurred_at: string; user_id: number | null; first_name: string | null; last_name: string | null; action: string; status_code: number }[]
+  items: { id: number; occurred_at: string; user_id: number | null; first_name: string | null; last_name: string | null; action: string; status_code: number; event_type: string; attempted_username: string | null; patient_id: number | null }[]
 }
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
@@ -94,5 +94,5 @@ export const api = {
   createExport: () => request<ExportResult>('/api/exports', { method: 'POST' }),
   export: (id: string) => request<unknown>(`/api/exports/${encodeURIComponent(id)}`),
   accessLogs: (query: URLSearchParams, signal?: AbortSignal) =>
-    request<AccessLogPage>(`/api/export-access-logs?${query}`, { signal }),
+    request<AccessLogPage>(`/api/access-logs?${query}`, { signal }),
 }

@@ -29,9 +29,12 @@ def create_app(database_path: Path = DEFAULT_DB_PATH) -> FastAPI:
     app.state.exports = {}
 
     @app.middleware("http")
-    async def log_export_access(request: Request, call_next):
+    async def log_access(request: Request, call_next):
         path = request.url.path.rstrip("/")
-        if path != "/api/exports" and not path.startswith("/api/exports/"):
+        is_export = path == "/api/exports" or path.startswith("/api/exports/")
+        is_login = path == "/api/login" and request.method == "POST"
+        is_patient = path.startswith("/api/records/") and request.method == "GET"
+        if not (is_export or is_login or is_patient):
             return await call_next(request)
         occurred_at = datetime.now(timezone.utc).isoformat(timespec="microseconds")
         status_code = 500
@@ -43,6 +46,17 @@ def create_app(database_path: Path = DEFAULT_DB_PATH) -> FastAPI:
             # Capture denied requests too; authentication can fail before a route runs.
             def persist():
                 with closing(connect(database_path)) as connection, connection:
+                    if not is_export:
+                        raw_id = path.rsplit("/", 1)[-1] if is_patient else ""
+                        patient_id = int(raw_id) if raw_id.isascii() and raw_id.isdecimal() and len(raw_id) < 19 else None
+                        connection.execute(
+                            "INSERT INTO activity_logs (occurred_at, user_id, event_type, action, "
+                            "status_code, attempted_username, patient_id) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                            (occurred_at, getattr(request.state, "user_id", None),
+                             "authentication" if is_login else "patient", "login" if is_login else "view",
+                             status_code, getattr(request.state, "attempted_username", None), patient_id),
+                        )
+                        return
                     connection.execute(
                         "INSERT INTO export_access_logs (occurred_at, user_id, action, status_code) "
                         "VALUES (?, ?, ?, ?)",
@@ -81,13 +95,16 @@ def create_app(database_path: Path = DEFAULT_DB_PATH) -> FastAPI:
         request.state.user_id = row["id"]
         return token, dict(row)
 
+    @app.get("/api/access-logs")
     @app.get("/api/export-access-logs")
     def export_access_logs(
+        request: Request,
         identity: tuple[str, dict] = Depends(current_user),
         user_id: int | None = Query(None, ge=1),
         anonymous: bool = False,
         outcome: Literal["success", "failure"] | None = None,
-        action: Literal["create", "view", "other"] | None = None,
+        action: Literal["create", "view", "other", "login"] | None = None,
+        event_type: Literal["export", "authentication", "patient"] | None = None,
         order: Literal["newest", "oldest"] = "newest",
         page: int = Query(1, ge=1),
         page_size: int = Query(20, ge=1, le=100),
@@ -95,6 +112,14 @@ def create_app(database_path: Path = DEFAULT_DB_PATH) -> FastAPI:
         if identity[1]["role"] != "manager":
             raise HTTPException(status_code=403, detail="Manager role required")
         clauses, parameters = [], []
+        unified = request.url.path == "/api/access-logs"
+        source = """(SELECT id, occurred_at, user_id, action, status_code,
+            'export' AS event_type, NULL AS attempted_username, NULL AS patient_id FROM export_access_logs
+            UNION ALL SELECT id, occurred_at, user_id, action, status_code,
+            event_type, attempted_username, patient_id FROM activity_logs)""" if unified else "export_access_logs"
+        if event_type and unified:
+            clauses.append("l.event_type = ?")
+            parameters.append(event_type)
         if user_id is not None:
             clauses.append("l.user_id = ?")
             parameters.append(user_id)
@@ -109,10 +134,10 @@ def create_app(database_path: Path = DEFAULT_DB_PATH) -> FastAPI:
         where = " WHERE " + " AND ".join(clauses) if clauses else ""
         direction = "DESC" if order == "newest" else "ASC"
         with closing(connect(database_path)) as connection:
-            total = connection.execute("SELECT COUNT(*) FROM export_access_logs l" + where,
+            total = connection.execute("SELECT COUNT(*) FROM " + source + " l" + where,
                                        parameters).fetchone()[0]
             rows = connection.execute(
-                "SELECT l.*, u.first_name, u.last_name FROM export_access_logs l "
+                "SELECT l.*, u.first_name, u.last_name FROM " + source + " l "
                 "LEFT JOIN users u ON u.id = l.user_id" + where +
                 f" ORDER BY l.occurred_at {direction}, l.id {direction} LIMIT ? OFFSET ?",
                 (*parameters, page_size, (page - 1) * page_size),
@@ -124,14 +149,17 @@ def create_app(database_path: Path = DEFAULT_DB_PATH) -> FastAPI:
 
     @app.post("/api/login")
     def login(payload: LoginInput, request: Request, response: Response) -> dict:
+        username = payload.username.strip().lower()
+        request.state.attempted_username = "".join(c for c in username if c.isprintable())[:100]
         with closing(connect(request.app.state.database_path)) as connection:
             row = connection.execute(
                 "SELECT id, username, password_hash, first_name, last_name, role "
                 "FROM users WHERE username = ?",
-                (payload.username.strip().lower(),),
+                (username,),
             ).fetchone()
         if row is None or not verify_password(payload.password, row["password_hash"]):
             raise HTTPException(status_code=401, detail="Invalid username or password")
+        request.state.user_id = row["id"]
 
         old_token = request.cookies.get(COOKIE_NAME)
         if old_token:
