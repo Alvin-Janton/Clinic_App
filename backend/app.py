@@ -33,8 +33,10 @@ def create_app(database_path: Path = DEFAULT_DB_PATH) -> FastAPI:
         path = request.url.path.rstrip("/")
         is_export = path == "/api/exports" or path.startswith("/api/exports/")
         is_login = path == "/api/login" and request.method == "POST"
+        is_logout = path == "/api/logout" and request.method == "POST"
+        is_records = path == "/api/records" and request.method == "GET"
         is_patient = path.startswith("/api/records/") and request.method == "GET"
-        if not (is_export or is_login or is_patient):
+        if not (is_export or is_login or is_logout or is_records or is_patient):
             return await call_next(request)
         occurred_at = datetime.now(timezone.utc).isoformat(timespec="microseconds")
         status_code = 500
@@ -53,7 +55,8 @@ def create_app(database_path: Path = DEFAULT_DB_PATH) -> FastAPI:
                             "INSERT INTO activity_logs (occurred_at, user_id, event_type, action, "
                             "status_code, attempted_username, patient_id) VALUES (?, ?, ?, ?, ?, ?, ?)",
                             (occurred_at, getattr(request.state, "user_id", None),
-                             "authentication" if is_login else "patient", "login" if is_login else "view",
+                             "authentication" if is_login or is_logout else "patient",
+                             "login" if is_login else "logout" if is_logout else "list" if is_records else "view",
                              status_code, getattr(request.state, "attempted_username", None), patient_id),
                         )
                         return
@@ -103,7 +106,7 @@ def create_app(database_path: Path = DEFAULT_DB_PATH) -> FastAPI:
         user_id: int | None = Query(None, ge=1),
         anonymous: bool = False,
         outcome: Literal["success", "failure"] | None = None,
-        action: Literal["create", "view", "other", "login"] | None = None,
+        action: Literal["create", "view", "other", "login", "logout", "list"] | None = None,
         event_type: Literal["export", "authentication", "patient"] | None = None,
         order: Literal["newest", "oldest"] = "newest",
         page: int = Query(1, ge=1),
@@ -195,7 +198,9 @@ def create_app(database_path: Path = DEFAULT_DB_PATH) -> FastAPI:
     def logout(request: Request, response: Response) -> dict:
         token = request.cookies.get(COOKIE_NAME)
         if token:
-            request.app.state.sessions.pop(token, None)
+            session = request.app.state.sessions.pop(token, None)
+            if session and session["expires_at"] > time.monotonic():
+                request.state.user_id = session["user_id"]
             request.app.state.exports = {
                 key: value
                 for key, value in request.app.state.exports.items()

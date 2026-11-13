@@ -63,19 +63,46 @@ def test_authentication_and_patient_logs(tmp_path):
         client.post("/api/logout")
         assert client.get(f"/api/records/{allowed}").status_code == 401
         client.post("/api/login", json={"username": "andy", "password": "password"})
-        auth = client.get("/api/access-logs?event_type=authentication&order=oldest").json()
+        auth = client.get("/api/access-logs?event_type=authentication&action=login&order=oldest").json()
         assert auth["total"] == 4
         assert [r["status_code"] for r in auth["items"]] == [401, 401, 200, 200]
         assert auth["items"][0]["user_id"] is None
         assert auth["items"][0]["attempted_username"] == "andy"
         assert auth["items"][1]["attempted_username"] == "unknownuser"
-        patients = client.get("/api/access-logs?event_type=patient&order=oldest").json()
+        patients = client.get("/api/access-logs?event_type=patient&action=view&order=oldest").json()
         assert [r["status_code"] for r in patients["items"]] == [200, 403, 404, 401]
         assert patients["items"][1]["patient_id"] == denied
         assert client.get("/api/access-logs?event_type=patient&user_id=2&outcome=failure").json()["total"] == 2
         assert client.get("/api/access-logs?event_type=invalid").status_code == 422
-        assert client.get("/api/access-logs").json()["total"] == 8
+        assert client.get("/api/access-logs").json()["total"] == 10
         assert "SECRET" not in client.get("/api/access-logs").text
     with TestClient(create_app(path)) as client:
         client.post("/api/login", json={"username": "andy", "password": "password"})
-        assert client.get("/api/access-logs?event_type=patient").json()["total"] == 4
+        assert client.get("/api/access-logs?event_type=patient").json()["total"] == 5
+
+
+def test_records_list_and_logout_logging(tmp_path):
+    path = tmp_path / "clinic.sqlite3"
+    load_database(db_path=path)
+    app = create_app(path)
+    with TestClient(app) as client:
+        assert client.get("/api/records").status_code == 401
+        assert client.post("/api/logout").status_code == 200
+        client.post("/api/login", json={"username": "elodie", "password": "password"})
+        assert client.get("/api/records?page=1").status_code == 200
+        assert client.get("/api/records?page=0").status_code == 422
+        assert client.post("/api/logout").status_code == 200
+        assert client.get("/api/me").status_code == 401
+        client.post("/api/login", json={"username": "elodie", "password": "password"})
+        for session in app.state.sessions.values():
+            session["expires_at"] = 0
+        assert client.post("/api/logout").status_code == 200
+        client.post("/api/login", json={"username": "andy", "password": "password"})
+        logs = client.get("/api/access-logs?event_type=patient&action=list&order=oldest").json()
+        assert [row["status_code"] for row in logs["items"]] == [401, 200, 422]
+        assert [row["user_id"] for row in logs["items"]] == [None, 2, 2]
+        assert all(row["patient_id"] is None for row in logs["items"])
+        logouts = client.get("/api/access-logs?event_type=authentication&action=logout&order=oldest").json()
+        assert [row["user_id"] for row in logouts["items"]] == [None, 2, None]
+        assert all(row["status_code"] == 200 for row in logouts["items"])
+        assert client.get("/api/access-logs?action=logout&user_id=2").json()["total"] == 1
