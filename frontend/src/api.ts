@@ -1,3 +1,5 @@
+import { mockApi } from './mock/mockApi'
+
 export type Role = 'manager' | 'volunteer'
 
 export interface User {
@@ -80,7 +82,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   return response.json() as Promise<T>
 }
 
-export const api = {
+const httpApi = {
   login: (username: string, password: string) =>
     request<User>('/api/login', {
       method: 'POST',
@@ -89,10 +91,17 @@ export const api = {
   logout: () => request<{ signed_out: boolean }>('/api/logout', { method: 'POST' }),
   me: () => request<User>('/api/me'),
   records: (page: number, pageSize = 20, signal?: AbortSignal) =>
-    request<RecordPage>(`/api/records?page=${page}&page_size=${pageSize}`, { signal }),
+    request<RecordPage>(`/api/records?page=${page}&page_size=${pageSize}`, { signal: signal ?? null }),
   record: (id: number) => request<PatientDetail>(`/api/records/${id}`),
   createExport: () => request<ExportResult>('/api/exports', { method: 'POST' }),
   export: (id: string) => request<unknown>(`/api/exports/${encodeURIComponent(id)}`),
   accessLogs: (query: URLSearchParams, signal?: AbortSignal) =>
-    request<AccessLogPage>(`/api/access-logs?${query}`, { signal }),
+    request<AccessLogPage>(`/api/access-logs?${query}`, { signal: signal ?? null }),
 }
+
+export type ClinicApi = typeof httpApi
+
+// Preview-only synthetic adapter. Disabled unless VITE_CLINIC_MOCK=true is set at build time.
+export const MOCK_ENABLED = import.meta.env['VITE_CLINIC_MOCK'] === 'true'
+
+export const api: ClinicApi = MOCK_ENABLED ? mockApi : httpApi
