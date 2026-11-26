@@ -9,4 +9,4 @@ data/*.sqlite3.bak.bak
 frontend/node_modules/
 frontend/dist/
 frontend/*.tsbuildinfo
-
+clinic-lovable-one-page-test.zip
